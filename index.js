@@ -4,94 +4,76 @@ const io = require('socket.io')(httpServer, {
     origin: 'http://localhost:3000',
   },
 });
-const jwt = require('jsonwebtoken');
+
 const privateRequest = require('./src/services/axios');
+const authenMiddleware = require('./src/middlewares/authen');
+const { emitUsrOnl, getSocketId, getUsrOnl, emitStateConversations } = require('./src/helper');
+const { dispatch, selector } = require('./src/store');
+const {
+  selectUsersOnline,
+  selectStateConversationList,
+} = require('./src/store/selectors');
 
-let usersOnline = {};
+io.use(authenMiddleware).on('connection', (socket) => {
+  console.log('connection');
+  socket?.emit('WELCOME', 'WELCOME');
+  socket?.emit('STATE_CONVERSATIONS', selector(selectStateConversationList));
 
-const getUsrOnl = (usersOnline) =>
-  Object.keys(usersOnline).reduce(
-    (acc, userId) => ({
-      ...acc,
-      [userId]: usersOnline[userId].fromOnline,
-    }),
-    {},
-  );
+  //[SEND USER CONNECTING TO OTHER]
+  emitUsrOnl(socket.broadcast, selector(selectUsersOnline));
 
-const getUserIdFromSocketId = (socketId, usersOnline) =>
-  Object.entries(usersOnline).find(
-    ([_, infor]) => infor.socketId === socketId,
-  )?.[0];
-
-const updateOfflineTime = (socketId, usersOnline) => {
-  const userId = getUserIdFromSocketId(socketId, usersOnline);
-  return {
-    ...usersOnline,
-    [userId]: {
-      ...usersOnline[userId],
-      fromOnline: Date.now(),
-    },
-  };
-};
-
-const emitUsrOnl = (socket, usersOnline) => {
-  return socket.emit('GET_USER_ONLINE', getUsrOnl(usersOnline));
-};
-
-const getSocketId = (userId, usersOnline) => usersOnline[userId].socketId;
-
-io.use(function (socket, next) {
-  console.log('Authen...');
-  if (socket.handshake.query?.token) {
-    const token = socket.handshake.query.token;
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
-      if (error) {
-        console.log('Authen failed');
-        return next(new Error('authen failed'));
-      }
-      const userId = decoded.id;
-      socket.auth = { token, userId };
-      usersOnline[userId] = {
-        socketId: socket.id,
-        token,
-        fromOnline: null,
-      };
-      console.log('Authen successfully');
-      next();
-    });
-    next();
-  } else {
-    console.log('token not found');
-    next(new Error('Authentication error'));
-  }
-}).on('connection', (socket) => {
-  socket.on('CALL_USER_ONLINE', () => {
-    io.emit('GET_USER_ONLINE', getUsrOnl(usersOnline));
+  //[SEND USER CONNECTING TO ITSELF]
+  socket.on('INIT_CONVERSATIONS', (userId) => {
+    const usersOnline = selector(selectUsersOnline);
+    const socketId = getSocketId(userId, usersOnline);
+    if (socketId) {
+      emitStateConversations(io.to(socketId), selector(selectStateConversationList));
+      emitUsrOnl(io.to(socketId), usersOnline);
+    }
   });
 
+  //[UPDATE CONVERSATION SEEN/UNSEEN]
+  socket.on('UPDATE_STATE_CONVERSATION', ({ conversationId, isSeen }) => {
+    console.log('UPDATE_STATE_CONVERSATION')
+    console.log({ conversationId, isSeen })
+    dispatch({
+      type: 'UPDATE_STATE_CONVERSATION',
+      payload: { conversationId, isSeen },
+    });
+  });
+
+  //[SEND MESSAGE]
   socket.on(
     'SEND_MESSAGE',
     ({ receiverId, senderId, text, conversationId }) => {
-      console.log(
-        `senderId: ${senderId}, receiverId: ${receiverId}, text: ${text}, socketId: ${getSocketId(
-          receiverId,
-          usersOnline,
-        )}`,
-      );
-      io.to(getSocketId(receiverId, usersOnline)).emit('GET_MESSAGE', {
-        senderId,
-        text,
-        conversationId,
+      const usersOnline = selector(selectUsersOnline);
+      const socketIdReceiver = getSocketId(receiverId, usersOnline);
+      dispatch({
+        type: 'UPDATE_STATE_CONVERSATION',
+        payload: { conversationId, isSeen: true },
       });
+      console.log(
+        `senderId: ${senderId}, receiverId: ${receiverId}, text: ${text}, socketIdReceiver:${socketIdReceiver}`,
+      );
+
+      //[RECEIVE MESSAGE TO USER (PRIVATE CHAT)]
+      if (socketIdReceiver) {
+        io.to(socketIdReceiver).emit('GET_MESSAGE', {
+          senderId,
+          text,
+          conversationId,
+        });
+      }
     },
   );
 
+  //[UPDATE FROM TIME ONLINE TO DB (CALL API)]
   socket.on('UPDATE_CONVERSATION', async ({ conversationIdList, userId }) => {
-    // call api to update fromOnline time
     try {
-      const { token, conversationId } = usersOnline[userId];
+      const usersOnline = selector(selectUsersOnline);
+      const { token } = usersOnline[userId];
       console.log('update conversation...');
-      const response = await Promise.all(
+      await Promise.all(
         conversationIdList.map(
           async (id) =>
             await privateRequest(token).put(
@@ -102,7 +84,6 @@ io.use(function (socket, next) {
             ),
         ),
       );
-      console.log(response.map((res) => res.data));
       console.log('update successfully');
     } catch (error) {
       console.log(`update error ${error}`);
@@ -110,14 +91,11 @@ io.use(function (socket, next) {
   });
 
   socket.on('disconnect', () => {
-    console.log('user disconnect');
-    // usersOnline = Object.fromEntries(
-    //   Object.entries(usersOnline).filter((u) => u[1] !== socket.id),
-    // );
-    usersOnline = updateOfflineTime(socket.id, usersOnline);
-    console.log({ usersOnline });
+    dispatch({ type: 'UPDATE_TIME', payload: socket.id });
+    const usersOnline = selector(selectUsersOnline);
     emitUsrOnl(socket.broadcast, usersOnline);
   });
 });
 
-io.listen(8900, console.log(`Socket server running on ${8900}`));
+const port = 8900;
+io.listen(port, console.log(`Socket server running on ${port}`));
