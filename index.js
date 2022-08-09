@@ -7,7 +7,11 @@ const io = require('socket.io')(httpServer, {
 
 const privateRequest = require('./src/services/axios');
 const authenMiddleware = require('./src/middlewares/authen');
-const { emitUsrOnl, getSocketId, getUsrOnl, emitStateConversations } = require('./src/helper');
+const {
+  emitUsrOnl,
+  getSocketId,
+  emitStateConversations,
+} = require('./src/helper');
 const { dispatch, selector } = require('./src/store');
 const {
   selectUsersOnline,
@@ -16,8 +20,7 @@ const {
 
 io.use(authenMiddleware).on('connection', (socket) => {
   console.log('connection');
-  socket?.emit('WELCOME', 'WELCOME');
-  socket?.emit('STATE_CONVERSATIONS', selector(selectStateConversationList));
+  // socket?.emit('STATE_CONVERSATIONS', selector(selectStateConversationList));
 
   //[SEND USER CONNECTING TO OTHER]
   emitUsrOnl(socket.broadcast, selector(selectUsersOnline));
@@ -27,19 +30,28 @@ io.use(authenMiddleware).on('connection', (socket) => {
     const usersOnline = selector(selectUsersOnline);
     const socketId = getSocketId(userId, usersOnline);
     if (socketId) {
-      emitStateConversations(io.to(socketId), selector(selectStateConversationList));
+      console.log({ stateConversation: selector(selectStateConversationList) });
+      emitStateConversations(
+        io.to(socketId),
+        selector(selectStateConversationList),
+      );
       emitUsrOnl(io.to(socketId), usersOnline);
     }
   });
 
   //[UPDATE CONVERSATION SEEN/UNSEEN]
   socket.on('UPDATE_STATE_CONVERSATION', ({ conversationId, isSeen }) => {
-    console.log('UPDATE_STATE_CONVERSATION')
-    console.log({ conversationId, isSeen })
     dispatch({
       type: 'UPDATE_STATE_CONVERSATION',
       payload: { conversationId, isSeen },
     });
+
+    socket.emit('UPDATE_STATE_CONVERSATION_ITEM', conversationId);
+  });
+
+  //[JOIN ROOM]
+  socket.on('JOIN_ROOM', (rooms) => {
+    rooms.forEach((room) => socket.join(room));
   });
 
   //[SEND MESSAGE]
@@ -55,15 +67,23 @@ io.use(authenMiddleware).on('connection', (socket) => {
       console.log(
         `senderId: ${senderId}, receiverId: ${receiverId}, text: ${text}, socketIdReceiver:${socketIdReceiver}`,
       );
+      socketIdReceiver
+        ? io.to(socketIdReceiver).emit('GET_MESSAGE', {
+            senderId,
+            text,
+            conversationId,
+          })
+        : socket.to(conversationId).emit('GET_MESSAGE', {
+            senderId,
+            text,
+            conversationId,
+          });
 
-      //[RECEIVE MESSAGE TO USER (PRIVATE CHAT)]
-      if (socketIdReceiver) {
-        io.to(socketIdReceiver).emit('GET_MESSAGE', {
-          senderId,
-          text,
-          conversationId,
-        });
-      }
+      //[UPDATE CONVERSATION BE UNSEEN]
+      dispatch({
+        type: 'UPDATE_STATE_CONVERSATION',
+        payload: { conversationId, isSeen: false },
+      });
     },
   );
 
