@@ -1,79 +1,77 @@
-const httpServer = require('http').createServer();
-const io = require('socket.io')(httpServer, {
+const httpServer = require("http").createServer();
+const io = require("socket.io")(httpServer, {
   cors: {
-    origin: 'http://localhost:3000',
+    origin: "http://localhost:3000",
   },
 });
 
-const privateRequest = require('./src/services/axios');
-const authenMiddleware = require('./src/middlewares/authen');
+const privateRequest = require("./src/services/axios");
+const authenMiddleware = require("./src/middlewares/authen");
 const {
   emitUsrOnl,
   getSocketId,
   emitStateConversations,
-} = require('./src/helper');
-const { dispatch, selector } = require('./src/store');
+} = require("./src/helper");
+const { dispatch, selector } = require("./src/store");
 const {
   selectUsersOnline,
   selectStateConversationList,
-} = require('./src/store/selectors');
+} = require("./src/store/selectors");
 
-io.use(authenMiddleware).on('connection', (socket) => {
-  console.log('connection');
-  // socket?.emit('STATE_CONVERSATIONS', selector(selectStateConversationList));
+io.use(authenMiddleware).on("connection", (socket) => {
+  console.log("connection");
 
   //[SEND USER CONNECTING TO OTHER]
   emitUsrOnl(socket.broadcast, selector(selectUsersOnline));
 
   //[SEND USER CONNECTING TO ITSELF]
-  socket.on('INIT_CONVERSATIONS', (userId) => {
+  socket.on("INIT_CONVERSATIONS", (userId) => {
     const usersOnline = selector(selectUsersOnline);
     const socketId = getSocketId(userId, usersOnline);
-    if (socketId) {
-      console.log({ stateConversation: selector(selectStateConversationList) });
+    socketId && emitUsrOnl(io.to(socketId), usersOnline);
+  });
+
+  socket.on("GET_STATE_CONVERSATIONS", (userId) => {
+    console.log("GET_STATE_CONVERSATIONS");
+    const usersOnline = selector(selectUsersOnline);
+    const socketId = getSocketId(userId, usersOnline);
+    socketId &&
       emitStateConversations(
         io.to(socketId),
-        selector(selectStateConversationList),
+        selector(selectStateConversationList)
       );
-      emitUsrOnl(io.to(socketId), usersOnline);
-    }
+    console.log({ stateConversation: selector(selectStateConversationList) });
   });
 
   //[UPDATE CONVERSATION SEEN/UNSEEN]
-  socket.on('UPDATE_STATE_CONVERSATION', ({ conversationId, isSeen }) => {
+  socket.on("UPDATE_STATE_CONVERSATION", ({ conversationId, isSeen }) => {
     dispatch({
-      type: 'UPDATE_STATE_CONVERSATION',
+      type: "UPDATE_STATE_CONVERSATION",
       payload: { conversationId, isSeen },
     });
-
-    socket.emit('UPDATE_STATE_CONVERSATION_ITEM', conversationId);
   });
 
   //[JOIN ROOM]
-  socket.on('JOIN_ROOM', (rooms) => {
+  socket.on("JOIN_ROOM", (rooms) => {
     rooms.forEach((room) => socket.join(room));
   });
 
   //[SEND MESSAGE]
   socket.on(
-    'SEND_MESSAGE',
+    "SEND_MESSAGE",
     ({ receiverId, senderId, text, conversationId }) => {
       const usersOnline = selector(selectUsersOnline);
       const socketIdReceiver = getSocketId(receiverId, usersOnline);
-      dispatch({
-        type: 'UPDATE_STATE_CONVERSATION',
-        payload: { conversationId, isSeen: true },
-      });
       console.log(
-        `senderId: ${senderId}, receiverId: ${receiverId}, text: ${text}, socketIdReceiver:${socketIdReceiver}`,
+        `senderId: ${senderId}, receiverId: ${receiverId}, text: ${text}, socketIdReceiver:${socketIdReceiver}`
       );
       socketIdReceiver
-        ? io.to(socketIdReceiver).emit('GET_MESSAGE', {
+        ? io.to(socketIdReceiver).emit("GET_MESSAGE", {
             senderId,
             text,
             conversationId,
           })
-        : socket.to(conversationId).emit('GET_MESSAGE', {
+        : socket.to(conversationId).emit("GET_MESSAGE", {
             senderId,
             text,
             conversationId,
@@ -81,18 +79,19 @@ io.use(authenMiddleware).on('connection', (socket) => {
 
       //[UPDATE CONVERSATION BE UNSEEN]
       dispatch({
-        type: 'UPDATE_STATE_CONVERSATION',
+        type: "UPDATE_STATE_CONVERSATION",
         payload: { conversationId, isSeen: false },
       });
-    },
+      console.log({ stateConversation: selector(selectStateConversationList) });
+    }
   );
 
   //[UPDATE FROM TIME ONLINE TO DB (CALL API)]
-  socket.on('UPDATE_CONVERSATION', async ({ conversationIdList, userId }) => {
+  socket.on("UPDATE_CONVERSATION", async ({ conversationIdList, userId }) => {
     try {
       const usersOnline = selector(selectUsersOnline);
       const { token } = usersOnline[userId];
-      console.log('update conversation...');
+      console.log("update conversation...");
       await Promise.all(
         conversationIdList.map(
           async (id) =>
@@ -100,18 +99,18 @@ io.use(authenMiddleware).on('connection', (socket) => {
               `/conversations/${id}/update-time`,
               {
                 fromOnline: Date.now(),
-              },
-            ),
-        ),
+              }
+            )
+        )
       );
-      console.log('update successfully');
+      console.log("update successfully");
     } catch (error) {
       console.log(`update error ${error}`);
     }
   });
 
-  socket.on('disconnect', () => {
-    dispatch({ type: 'UPDATE_TIME', payload: socket.id });
+  socket.on("disconnect", () => {
+    dispatch({ type: "UPDATE_TIME", payload: socket.id });
     const usersOnline = selector(selectUsersOnline);
     emitUsrOnl(socket.broadcast, usersOnline);
   });
