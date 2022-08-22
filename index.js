@@ -43,6 +43,14 @@ io.use(authenMiddleware).on("connection", (socket) => {
     console.log({ stateConversation: selector(selectStateConversationList) });
   });
 
+  //[SEND ADD FRIEND]
+  socket.on("ADD_FRIEND", (payload) => {
+    const usersOnline = selector(selectUsersOnline);
+    const socketId = getSocketId(payload.receiverId, usersOnline);
+    io.to(socketId).emit("ADD_FRIEND", payload);
+    console.log(payload);
+  });
+
   //[UPDATE CONVERSATION SEEN/UNSEEN]
   socket.on("UPDATE_STATE_CONVERSATION", ({ conversationId, isSeen }) => {
     dispatch({
@@ -116,5 +124,5 @@ io.use(authenMiddleware).on("connection", (socket) => {
   });
 });
 
-const port = 8900;
+const port = process.env.PORT || 8900;
 io.listen(port, console.log(`Socket server running on ${port}`));
