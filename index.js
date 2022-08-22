@@ -1,7 +1,7 @@
 const httpServer = require("http").createServer();
 const io = require("socket.io")(httpServer, {
   cors: {
-    origin: "https://tnt-team-web-chat.vercel.app/",
+    origin: "https://tnt-team-web-chat.vercel.app",
   },
 });
 
