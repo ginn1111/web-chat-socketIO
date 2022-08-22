@@ -1,7 +1,7 @@
 const httpServer = require("http").createServer();
 const io = require("socket.io")(httpServer, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: "https://tnt-team-web-chat.vercel.app/",
   },
 });
 
@@ -75,15 +75,15 @@ io.use(authenMiddleware).on("connection", (socket) => {
       );
       socketIdReceiver
         ? io.to(socketIdReceiver).emit("GET_MESSAGE", {
-            senderId,
-            text,
-            conversationId,
-          })
+          senderId,
+          text,
+          conversationId,
+        })
         : socket.to(conversationId).emit("GET_MESSAGE", {
-            senderId,
-            text,
-            conversationId,
-          });
+          senderId,
+          text,
+          conversationId,
+        });
 
       //[UPDATE CONVERSATION BE UNSEEN]
       dispatch({

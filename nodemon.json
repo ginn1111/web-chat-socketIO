@@ -1,6 +1,6 @@
 {
   "env": {
     "ACCESS_TOKEN_SECRET": "c075b2bca9d384fa4b178dff676e4df8f5c7be5c7d2c2de2724254e7013d800ebebcf9c50d1d77fb038062dbc9f52252554aef05c327d2d130b06af72807d416",
-    "API_URL": "http://localhost:8080/api"
+    "API_URL": " https://tnt-team-web-chat-api.herokuapp.com/api"
   }
 }
