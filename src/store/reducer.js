@@ -1,4 +1,4 @@
-const { updateOfflineTime } = require('../helper');
+import { updateOfflineTime } from '../helper.js';
 
 const INIT_STATE = {
   usersOnline: {},
@@ -40,4 +40,4 @@ const reducer = (state = INIT_STATE, action = {}) => {
   }
 };
 
-module.exports = reducer;
+export default reducer;

@@ -4,12 +4,12 @@ const getUsrOnl = (usersOnline) =>
       ...acc,
       [userId]: usersOnline[userId]?.fromOnline,
     }),
-    {},
+    {}
   );
 
 const getUserIdFromSocketId = (socketId, usersOnline) =>
   Object.entries(usersOnline).find(
-    ([_, infor]) => infor.socketId === socketId,
+    ([_, infor]) => infor.socketId === socketId
   )?.[0];
 
 const updateOfflineTime = (socketId, usersOnline) => {
@@ -29,13 +29,14 @@ const emitUsrOnl = (socket, usersOnline) => {
 
 const getSocketId = (userId, usersOnline) => usersOnline[userId]?.socketId;
 
-const emitStateConversations = (io, stateConversations) => io.emit('GET_STATE_CONVERSATIONS', stateConversations);
+const emitStateConversations = (io, stateConversations) =>
+  io.emit('GET_STATE_CONVERSATIONS', stateConversations);
 
-module.exports = {
+export {
   getUsrOnl,
   getUserIdFromSocketId,
   updateOfflineTime,
   emitUsrOnl,
   getSocketId,
-  emitStateConversations
+  emitStateConversations,
 };

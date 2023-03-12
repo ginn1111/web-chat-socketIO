@@ -10,4 +10,4 @@ const store = (reducer) => {
   };
 };
 
-module.exports = store;
+export default store;

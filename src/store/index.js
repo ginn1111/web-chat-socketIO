@@ -1,9 +1,6 @@
-const store = require('./store');
-const reducer = require('./reducer');
+import store from './store.js';
+import reducer from './reducer.js';
 
 const { dispatch, selector } = store(reducer);
 
-module.exports = {
-  dispatch,
-  selector,
-};
+export { dispatch, selector };

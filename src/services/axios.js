@@ -1,6 +1,6 @@
-const axios = require('axios');
+import axios from 'axios';
 
-module.exports = (token) =>
+export default (token) =>
   axios.create({
     baseURL: process.env.API_URL,
     headers: {

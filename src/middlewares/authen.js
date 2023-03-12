@@ -1,5 +1,5 @@
-const jwt = require('jsonwebtoken');
-const { dispatch } = require('../store');
+import jwt from 'jsonwebtoken';
+import { dispatch } from '../store/index.js';
 
 const authenMiddleware = (socket, next) => {
   console.log('Authen...');
@@ -29,4 +29,4 @@ const authenMiddleware = (socket, next) => {
   }
 };
 
-module.exports = authenMiddleware;
+export default authenMiddleware;
